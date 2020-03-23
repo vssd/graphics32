@@ -37,7 +37,7 @@ type
     FReservedList: TStringList;
     FCurrent: TPoint;
     FLastX: Integer;
-    FCurrentLine: string; //line containing next token to be read
+    FCurrentLine: AnsiString; //line containing next token to be read
     FCurrentLineLen: Integer;
     FLastSpecialComment: string;
     FLatestCommentLine: Integer;
@@ -63,6 +63,7 @@ type
     property Finished: Boolean read FFinished;
     property CurrentPt: TPoint read FCurrent;
     property ReservedList: TStringList read FReservedList;
+    property LatestCommentLine: integer read FLatestCommentLine;
     property LastSpecialComment: string read GetLastSpecialComment;
   end;
 

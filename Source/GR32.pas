@@ -436,6 +436,7 @@ type
     class function Zero: TFixedPoint; inline; static;
   {$ENDIF}
   end;
+  {$NODEFINE TFixedPoint}
 
   PFixedPointArray = ^TFixedPointArray;
   TFixedPointArray = array [0..0] of TFixedPoint;
@@ -466,9 +467,16 @@ type
 
   PFloatRect = ^TFloatRect;
   {$NODEFINE TFloatRect}
+{$IFDEF SupportsBoost}
   (*$HPPEMIT '#include <boost/strong_typedef.hpp>'*)
+{$ENDIF}
   (*$HPPEMIT 'namespace Gr32 {'*)
+{$IFDEF SupportsBoost}
   (*$HPPEMIT 'BOOST_STRONG_TYPEDEF(int, TFixed)'*)
+{$ELSE}
+  (*$HPPEMIT 'typedef int TFixed;'*)
+{$ENDIF}
+  (*$HPPEMIT 'struct TFixedPoint { float X, Y; }; typedef struct TFixedPoint TFixedPoint;'*)
   (*$HPPEMIT 'struct TFloatRect { float Left, Top, Right, Bottom; }; typedef struct TFloatRect TFloatRect;'*)
   (*$HPPEMIT 'struct TFixedRect { TFixed Left, Top, Right, Bottom; }; typedef struct TFixedRect TFixedRect;'*)
   (*$HPPEMIT '} // namespace Gr32 '*)
@@ -537,13 +545,6 @@ type
     sfLanczos, sfMitchell);
 {$ENDIF}
 
-{ Gamma bias for line/pixel antialiasing }
-
-var
-  GAMMA_TABLE: array [Byte] of Byte;
-
-procedure SetGamma(Gamma: Single = 1.6);
-
 type
   { TPlainInterfacedPersistent }
   { TPlainInterfacedPersistent provides simple interface support with
@@ -581,6 +582,7 @@ type
   protected
     property UpdateCount: Integer read FUpdateCount;
   public
+    procedure BeforeDestruction; override;
     procedure Changed; virtual;
     procedure BeginUpdate; virtual;
     procedure EndUpdate; virtual;
@@ -620,11 +622,13 @@ type
     procedure ChangeSize(var Width, Height: Integer; NewWidth, NewHeight: Integer); virtual;
   public
     constructor Create(Width, Height: Integer); reintroduce; overload;
+
     procedure Delete; virtual;
     function  Empty: Boolean; virtual;
     procedure Resized; virtual;
     function SetSizeFrom(Source: TPersistent): Boolean;
     function SetSize(NewWidth, NewHeight: Integer): Boolean; virtual;
+
     property Height: Integer read FHeight write SetHeight;
     property Width: Integer read FWidth write SetWidth;
     property OnResize: TNotifyEvent read FOnResize write FOnResize;
@@ -971,11 +975,17 @@ type
 {$IFDEF BCB}
     procedure DrawTo(hDst: Cardinal; DstX, DstY: Integer); overload;
     procedure DrawTo(hDst: Cardinal; const DstRect, SrcRect: TRect); overload;
-    procedure TileTo(hDst: Cardinal; const DstRect, SrcRect: TRect);
+    procedure TileTo(hDst: Cardinal; const DstRect, SrcRect: TRect); overload;
 {$ELSE}
     procedure DrawTo(hDst: HDC; DstX: Integer = 0; DstY: Integer = 0); overload;
     procedure DrawTo(hDst: HDC; const DstRect, SrcRect: TRect); overload;
-    procedure TileTo(hDst: HDC; const DstRect, SrcRect: TRect);
+    procedure TileTo(hDst: HDC; const DstRect, SrcRect: TRect); overload;
+{$ENDIF}
+
+{$IFDEF COMPILER2009_UP}
+    procedure DrawTo(Dst: TControlCanvas; DstX: Integer = 0; DstY: Integer = 0); overload;
+    procedure DrawTo(Dst: TControlCanvas; const DstRect, SrcRect: TRect); overload;
+    procedure TileTo(Dst: TControlCanvas; const DstRect, SrcRect: TRect); overload;
 {$ENDIF}
 
     procedure UpdateFont;
@@ -1104,7 +1114,7 @@ implementation
 
 uses
   Math, GR32_Blend, GR32_LowLevel, GR32_Math, GR32_Resamplers,
-  GR32_Containers, GR32_Backends, GR32_Backends_Generic,
+  GR32_Containers, GR32_Gamma, GR32_Backends, GR32_Backends_Generic,
 {$IFDEF FPC}
   Clipbrd,
   {$IFDEF LCLWin32}
@@ -1221,6 +1231,7 @@ begin
              (Color32 and $0000FF00) or
             ((Color32 and $000000FF) shl 16);
 {$ELSE}
+{$IFDEF FPC}assembler; nostackframe;{$ENDIF}
 asm
 {$IFDEF TARGET_x64}
         MOV     EAX, ECX
@@ -2086,16 +2097,6 @@ begin
     (P.Y >= R.Top) and (P.Y < R.Bottom);
 end;
 
-{ Gamma / Pixel Shape Correction table }
-
-procedure SetGamma(Gamma: Single);
-var
-  i: Integer;
-begin
-  for i := 0 to $FF do
-    GAMMA_TABLE[i] := Round($FF * Power(i * COne255th, Gamma));
-end;
-
 { TSimpleInterfacedPersistent }
 
 function TPlainInterfacedPersistent._AddRef: Integer;
@@ -2156,6 +2157,12 @@ end;
 
 
 { TNotifiablePersistent }
+
+procedure TNotifiablePersistent.Beforedestruction;
+begin
+  inherited;
+  inc(FUpdateCount);
+end;
 
 procedure TNotifiablePersistent.BeginUpdate;
 begin
@@ -2294,7 +2301,6 @@ end;
 
 destructor TCustomBitmap32.Destroy;
 begin
-  BeginUpdate;
   Lock;
   try
     SetSize(0, 0);
@@ -2663,8 +2669,10 @@ procedure TCustomBitmap32.Assign(Source: TPersistent);
 {$IFNDEF PLATFORM_INDEPENDENT}
     else if SrcGraphic is TMetaFile then
       AssignFromGraphicMasked(TargetBitmap, SrcGraphic)
+    {$IFDEF COMPILER2010_UP}
     else if SrcGraphic is TWICImage then
       AssignFromGraphicPlain(TargetBitmap, SrcGraphic, 0, False)
+    {$ENDIF}
 {$ENDIF}
     else
       AssignFromGraphicPlain(TargetBitmap, SrcGraphic, clWhite32, True);
@@ -2991,10 +2999,10 @@ begin
   if FCombineMode = cmBlend then
   begin
     A := C shr 24;  // opacity
-    celx := A * GAMMA_TABLE[flrx xor $FF];
-    cely := GAMMA_TABLE[flry xor $FF];
-    flrx := A * GAMMA_TABLE[flrx];
-    flry := GAMMA_TABLE[flry];
+    celx := A * GAMMA_ENCODING_TABLE[flrx xor $FF];
+    cely := GAMMA_ENCODING_TABLE[flry xor $FF];
+    flrx := A * GAMMA_ENCODING_TABLE[flrx];
+    flry := GAMMA_ENCODING_TABLE[flry];
 
     CombineMem(C, P^, celx * cely shr 16); Inc(P);
     CombineMem(C, P^, flrx * cely shr 16); Inc(P, FWidth);
@@ -3003,11 +3011,11 @@ begin
   end
   else
   begin
-    celx := GAMMA_TABLE[flrx xor $FF];
-    cely := GAMMA_TABLE[flry xor $FF];
-    flrx := GAMMA_TABLE[flrx];
-    flry := GAMMA_TABLE[flry];
-    
+    celx := GAMMA_ENCODING_TABLE[flrx xor $FF];
+    cely := GAMMA_ENCODING_TABLE[flry xor $FF];
+    flrx := GAMMA_ENCODING_TABLE[flrx];
+    flry := GAMMA_ENCODING_TABLE[flry];
+
     CombineMem(MergeReg(C, P^), P^, celx * cely shr 8); Inc(P);
     CombineMem(MergeReg(C, P^), P^, flrx * cely shr 8); Inc(P, FWidth);
     CombineMem(MergeReg(C, P^), P^, flrx * flry shr 8); Dec(P);
@@ -3044,10 +3052,10 @@ begin
   if FCombineMode = cmBlend then
   begin
     A := C shr 24;  // opacity
-    celx := A * GAMMA_TABLE[flrx xor $FF];
-    cely := GAMMA_TABLE[flry xor $FF];
-    flrx := A * GAMMA_TABLE[flrx];
-    flry := GAMMA_TABLE[flry];
+    celx := A * GAMMA_ENCODING_TABLE[flrx xor $FF];
+    cely := GAMMA_ENCODING_TABLE[flry xor $FF];
+    flrx := A * GAMMA_ENCODING_TABLE[flrx];
+    flry := GAMMA_ENCODING_TABLE[flry];
 
     if (X >= FClipRect.Left) and (Y >= FClipRect.Top) and
        (X < FClipRect.Right - 1) and (Y < FClipRect.Bottom - 1) then
@@ -3068,10 +3076,10 @@ begin
   end
   else
   begin
-    celx := GAMMA_TABLE[flrx xor $FF];
-    cely := GAMMA_TABLE[flry xor $FF];
-    flrx := GAMMA_TABLE[flrx];
-    flry := GAMMA_TABLE[flry];
+    celx := GAMMA_ENCODING_TABLE[flrx xor $FF];
+    cely := GAMMA_ENCODING_TABLE[flry xor $FF];
+    flrx := GAMMA_ENCODING_TABLE[flrx];
+    flry := GAMMA_ENCODING_TABLE[flry];
 
     if (X >= FClipRect.Left) and (Y >= FClipRect.Top) and
        (X < FClipRect.Right - 1) and (Y < FClipRect.Bottom - 1) then
@@ -3170,8 +3178,8 @@ var
   Pos: Integer;
 begin
   Pos := (X shr 8) + (Y shr 8) * FWidth;
-  Result := Interpolator(GAMMA_TABLE[X and $FF xor $FF],
-                         GAMMA_TABLE[Y and $FF xor $FF],
+  Result := Interpolator(GAMMA_ENCODING_TABLE[X and $FF xor $FF],
+                         GAMMA_ENCODING_TABLE[Y and $FF xor $FF],
                          @Bits[Pos], @Bits[Pos + FWidth]);
 end;
 
@@ -3241,6 +3249,7 @@ begin
   Result := GET_TS256(X, Y);
   EMMS;
 {$ELSE}
+{$IFDEF FPC}assembler;{$ENDIF}
 asm
 {$IFDEF TARGET_x64}
           PUSH    RBP
@@ -3527,15 +3536,15 @@ begin
     Count := X2F - X1F - 1;
     if Wy > 0 then
     begin
-      CombineMem(Value, PDst^, GAMMA_TABLE[(Wy * Wx1) shr 24]);
-      Wt := GAMMA_TABLE[Wy shr 8];
+      CombineMem(Value, PDst^, GAMMA_ENCODING_TABLE[(Wy * Wx1) shr 24]);
+      Wt := GAMMA_ENCODING_TABLE[Wy shr 8];
       Inc(PDst);
       for I := 0 to Count - 1 do
       begin
         CombineMem(Value, PDst^, Wt);
         Inc(PDst);
       end;
-      CombineMem(Value, PDst^, GAMMA_TABLE[(Wy * Wx2) shr 24]);
+      CombineMem(Value, PDst^, GAMMA_ENCODING_TABLE[(Wy * Wx2) shr 24]);
     end;
 
     PDst := PixelPtr[X1F, YF + 1];
@@ -3543,15 +3552,15 @@ begin
     Wy := Wy xor $ffff;
     if Wy > 0 then
     begin
-      CombineMem(Value, PDst^, GAMMA_TABLE[(Wy * Wx1) shr 24]);
+      CombineMem(Value, PDst^, GAMMA_ENCODING_TABLE[(Wy * Wx1) shr 24]);
       Inc(PDst);
-      Wt := GAMMA_TABLE[Wy shr 8];
+      Wt := GAMMA_ENCODING_TABLE[Wy shr 8];
       for I := 0 to Count - 1 do
       begin
         CombineMem(Value, PDst^, Wt);
         Inc(PDst);
       end;
-      CombineMem(Value, PDst^, GAMMA_TABLE[(Wy * Wx2) shr 24]);
+      CombineMem(Value, PDst^, GAMMA_ENCODING_TABLE[(Wy * Wx2) shr 24]);
     end;
 
   finally
@@ -3721,15 +3730,15 @@ begin
     Count := Y2F - Y1F - 1;
     if Wx > 0 then
     begin
-      CombineMem(Value, PDst^, GAMMA_TABLE[(Wx * Wy1) shr 24]);
-      Wt := GAMMA_TABLE[Wx shr 8];
+      CombineMem(Value, PDst^, GAMMA_ENCODING_TABLE[(Wx * Wy1) shr 24]);
+      Wt := GAMMA_ENCODING_TABLE[Wx shr 8];
       Inc(PDst, FWidth);
       for I := 0 to Count - 1 do
       begin
         CombineMem(Value, PDst^, Wt);
         Inc(PDst, FWidth);
       end;
-      CombineMem(Value, PDst^, GAMMA_TABLE[(Wx * Wy2) shr 24]);
+      CombineMem(Value, PDst^, GAMMA_ENCODING_TABLE[(Wx * Wy2) shr 24]);
     end;
 
     PDst := PixelPtr[XF + 1, Y1F];
@@ -3737,15 +3746,15 @@ begin
     Wx := Wx xor $ffff;
     if Wx > 0 then
     begin
-      CombineMem(Value, PDst^, GAMMA_TABLE[(Wx * Wy1) shr 24]);
+      CombineMem(Value, PDst^, GAMMA_ENCODING_TABLE[(Wx * Wy1) shr 24]);
       Inc(PDst, FWidth);
-      Wt := GAMMA_TABLE[Wx shr 8];
+      Wt := GAMMA_ENCODING_TABLE[Wx shr 8];
       for I := 0 to Count - 1 do
       begin
         CombineMem(Value, PDst^, Wt);
         Inc(PDst, FWidth);
       end;
-      CombineMem(Value, PDst^, GAMMA_TABLE[(Wx * Wy2) shr 24]);
+      CombineMem(Value, PDst^, GAMMA_ENCODING_TABLE[(Wx * Wy2) shr 24]);
     end;
 
   finally
@@ -4603,9 +4612,9 @@ begin
         Inc(Y1, Sy);
         CI := EC shr 8;
         P := @Bits[X1 + Y1 * Width];
-        BlendMemEx(Value, P^, GAMMA_TABLE[CI xor $FF]);
+        BlendMemEx(Value, P^, GAMMA_ENCODING_TABLE[CI xor $FF]);
         Inc(P, Sx);
-        BlendMemEx(Value, P^, GAMMA_TABLE[CI]);
+        BlendMemEx(Value, P^, GAMMA_ENCODING_TABLE[CI]);
       end;
     end
     else // DY <= DX
@@ -4621,9 +4630,9 @@ begin
         Inc(X1, Sx);
         CI := EC shr 8;
         P := @Bits[X1 + Y1 * Width];
-        BlendMemEx(Value, P^, GAMMA_TABLE[CI xor $FF]);
+        BlendMemEx(Value, P^, GAMMA_ENCODING_TABLE[CI xor $FF]);
         if Sy = 1 then Inc(P, Width) else Dec(P, Width);
-        BlendMemEx(Value, P^, GAMMA_TABLE[CI]);
+        BlendMemEx(Value, P^, GAMMA_ENCODING_TABLE[CI]);
       end;
     end;
   finally
@@ -4780,7 +4789,7 @@ begin
           while xd <> term do
           begin
             Inc(xd, -Sx);
-            BlendMemEx(Value, Bits[D1^ + D2^ * Width], GAMMA_TABLE[ED shr 8]);
+            BlendMemEx(Value, Bits[D1^ + D2^ * Width], GAMMA_ENCODING_TABLE[ED shr 8]);
             Dec(ED, EA);
           end;
         finally
@@ -4875,9 +4884,9 @@ begin
       begin
         CI := EC shr 8;
         P := @Bits[D1^ + D2^ * Width];
-        BlendMemEx(Value, P^, GAMMA_TABLE[CI xor $FF]);
+        BlendMemEx(Value, P^, GAMMA_ENCODING_TABLE[CI xor $FF]);
         Inc(P, PI);
-        BlendMemEx(Value, P^, GAMMA_TABLE[CI]);
+        BlendMemEx(Value, P^, GAMMA_ENCODING_TABLE[CI]);
         // check for overflow and jump to next line...
         D := EC;
         Inc(EC, EA);
@@ -4895,7 +4904,7 @@ begin
     try
       while xd <> rem do
       begin
-        BlendMemEx(Value, Bits[D1^ + D2^ * Width], GAMMA_TABLE[EC shr 8 xor $FF]);
+        BlendMemEx(Value, Bits[D1^ + D2^ * Width], GAMMA_ENCODING_TABLE[EC shr 8 xor $FF]);
         Inc(EC, EA);
         Inc(xd, Sx);
       end;
@@ -4975,20 +4984,19 @@ var
   j: Integer;
   P: PColor32Array;
 begin
-  if Assigned(FBits) then
+  if (FBits <> nil) then
     for j := Y1 to Y2 - 1 do
     begin
       P := Pointer(@Bits[j * FWidth]);
       FillLongword(P[X1], X2 - X1, Value);
     end;
-    
+
   Changed(MakeRect(X1, Y1, X2, Y2));
 end;
 
 procedure TCustomBitmap32.FillRectS(X1, Y1, X2, Y2: Integer; Value: TColor32);
 begin
-  if not FMeasuringMode and
-    (X2 > X1) and (Y2 > Y1) and
+  if (X2 > X1) and (Y2 > Y1) and
     (X1 < FClipRect.Right) and (Y1 < FClipRect.Bottom) and
     (X2 > FClipRect.Left) and (Y2 > FClipRect.Top) then
   begin
@@ -4996,9 +5004,8 @@ begin
     if Y1 < FClipRect.Top then Y1 := FClipRect.Top;
     if X2 > FClipRect.Right then X2 := FClipRect.Right;
     if Y2 > FClipRect.Bottom then Y2 := FClipRect.Bottom;
-    FillRect(X1, Y1, X2, Y2, Value);
+    FillRect(X1, Y1, X2, Y2, Value); // Calls Changed()
   end;
-  Changed(MakeRect(X1, Y1, X2, Y2));
 end;
 
 procedure TCustomBitmap32.FillRectT(X1, Y1, X2, Y2: Integer; Value: TColor32);
@@ -5042,8 +5049,7 @@ end;
 
 procedure TCustomBitmap32.FillRectTS(X1, Y1, X2, Y2: Integer; Value: TColor32);
 begin
-  if not FMeasuringMode and
-    (X2 > X1) and (Y2 > Y1) and
+  if (X2 > X1) and (Y2 > Y1) and
     (X1 < FClipRect.Right) and (Y1 < FClipRect.Bottom) and
     (X2 > FClipRect.Left) and (Y2 > FClipRect.Top) then
   begin
@@ -5051,9 +5057,12 @@ begin
     if Y1 < FClipRect.Top then Y1 := FClipRect.Top;
     if X2 > FClipRect.Right then X2 := FClipRect.Right;
     if Y2 > FClipRect.Bottom then Y2 := FClipRect.Bottom;
-    FillRectT(X1, Y1, X2, Y2, Value);
+
+    if (FMeasuringMode) then
+      Changed(MakeRect(X1, Y1, X2, Y2))
+    else
+      FillRectT(X1, Y1, X2, Y2, Value); // Calls Changed()
   end;
-  Changed(MakeRect(X1, Y1, X2, Y2));
 end;
 
 procedure TCustomBitmap32.FillRectS(const ARect: TRect; Value: TColor32);
@@ -5265,7 +5274,7 @@ begin
   begin
     W := Width shl 2;
     for I := Height - 1 downto 0 do
-      Stream.WriteBuffer(PixelPtr[0, I]^, W);
+      Stream.WriteBuffer(ScanLine[I]^, W);
   end
   else
   begin
@@ -5585,8 +5594,8 @@ begin
     GetMem(Buffer, Width shl 2);
     for J := 0 to Height div 2 - 1 do
     begin
-      P1 := PixelPtr[0, J];
-      P2 := PixelPtr[0, J2];
+      P1 := PColor32(ScanLine[J]);
+      P2 := PColor32(ScanLine[J2]);
       MoveLongword(P1^, Buffer^, Width);
       MoveLongword(P2^, P1^, Width);
       MoveLongword(Buffer^, P2^, Width);
@@ -5601,7 +5610,7 @@ begin
     J2 := Height - 1;
     for J := 0 to Height - 1 do
     begin
-      MoveLongword(PixelPtr[0, J]^, Dst.PixelPtr[0, J2]^, Width);
+      MoveLongword(ScanLine[J]^, Dst.ScanLine[J2]^, Width);
       Dec(J2);
     end;
     Dst.Changed;
@@ -5980,6 +5989,23 @@ begin
   end;
 end;
 
+{$IFDEF COMPILER2009_UP}
+procedure TBitmap32.DrawTo(Dst: TControlCanvas; DstX, DstY: Integer);
+begin
+  DrawTo(Dst.Handle, DstX, DstY);
+end;
+
+procedure TBitmap32.DrawTo(Dst: TControlCanvas; const DstRect, SrcRect: TRect);
+begin
+  DrawTo(Dst.Handle, DstRect, SrcRect);
+end;
+
+procedure TBitmap32.TileTo(Dst: TControlCanvas; const DstRect, SrcRect: TRect);
+begin
+  TileTo(Dst.Handle, DstRect, SrcRect);
+end;
+{$ENDIF}
+
 procedure TBitmap32.UpdateFont;
 begin
   (FBackend as IFontSupport).UpdateFont;
@@ -6159,7 +6185,7 @@ var
   Dst: PColor32;
 begin
   Sz := 1 shl N - 1;
-  Dst := B.PixelPtr[0, 0];
+  Dst := PColor32(B.ScanLine[0]);
   for J := 0 to B.Height - 1 do
   begin
     Y := J shl N;

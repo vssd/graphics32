@@ -16,7 +16,7 @@ function GetMeta(const FileName: string; const Name: string): string;
 function GetFileList(FDirectory, Filter: TFileName): TStringList;
 function GetDirList(FDirectory, Filter: TFileName): TStringList;
 function CompareDirectories(List: TStringList; Index1, Index2: Integer): Integer;
-function GetLinkName(const Target: string): string;
+function GetLinkName(const Target: AnsiString): string;
 function CompareLinks(List: TStringList; Index1, Index2: Integer): Integer;
 function CompareElements(Item1, Item2: Pointer): Integer;
 procedure RunCommandInMemo(const Command: string; AMemo: TMemo);
@@ -63,12 +63,16 @@ begin
     Head := Dom.FindNode('head', True);
     if Head = nil then Exit;
     Nodes := Head.FindNodes('meta', False);
-    for I := 0 to Nodes.Count - 1 do
-      if SameText(Nodes.Items[I].Attributes['name'], Name) then
-      begin
-        Result := Nodes.Items[I].Attributes['content'];
-        Exit;
-      end;
+    try
+      for I := 0 to Nodes.Count - 1 do
+        if SameText(Nodes.Items[I].Attributes['name'], Name) then
+        begin
+          Result := Nodes.Items[I].Attributes['content'];
+          Exit;
+        end;
+    finally
+      Nodes.Free;
+    end;
   finally
     Dom.Free;
   end;
@@ -133,7 +137,7 @@ begin
   Result := AnsiCompareStr(S1, S2);
 end;
 
-function GetLinkName(const Target: string): string;
+function GetLinkName(const Target: AnsiString): string;
 var
   I: Integer;
 begin

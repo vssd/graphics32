@@ -285,6 +285,30 @@ type
     property BottomCurve: TArrayOfFloatPoint read FBottomCurve write SetBottomCurve;
   end;
 
+  TRadialDistortionTransformation = class(TTransformation)
+  protected
+    FCoefficient1, FCoefficient2: TFloat;
+    FFocalPoint: TFloatPoint;
+    r_0, r_tgt_max, r_tgt_min: Single;
+    FMapElements: Integer;
+    Map: Array of TFloat;
+    function LookUpReverseMap(const r_tgt: TFloat): TFloat;
+    procedure SetCoefficient1(const Value: TFloat);
+    procedure SetCoefficient2(const Value: TFloat);
+    procedure SetMapElements(const Value: Integer);
+    procedure PrepareReverseMap;
+    procedure PrepareTransform; override;
+    procedure ReverseTransformFloat(DstX, DstY: TFloat; out SrcX, SrcY: TFloat); override;
+    procedure TransformFloat(SrcX, SrcY: TFloat; out DstX, DstY: TFloat); override;
+  public
+    constructor Create; override;
+    function HasTransformedBounds: Boolean; override;
+  published
+    property Coefficient1: TFloat read FCoefficient1 write SetCoefficient1;
+    property Coefficient2: TFloat read FCoefficient2 write SetCoefficient2;
+    property MapElements: Integer read FMapElements write SetMapElements;
+  end;
+
   TRemapTransformation = class(TTransformation)
   private
     FVectorMap : TVectorMap;
@@ -352,7 +376,7 @@ implementation
 
 uses
   Math, GR32_Blend, GR32_LowLevel, GR32_Math, GR32_Bindings,
-  GR32_Resamplers;
+  GR32_Resamplers, GR32_Geometry;
 
 resourcestring
   RCStrSrcRectIsEmpty = 'SrcRect is empty!';
@@ -381,7 +405,7 @@ begin
 end;
 
 {$IFNDEF PUREPASCAL}
-function DET32_ASM(a1, a2, b1, b2: Single): Single; overload;
+function DET32_ASM(a1, a2, b1, b2: Single): Single; overload; {$IFDEF FPC}assembler; {$IFDEF CPU64}nostackframe;{$ENDIF}{$ENDIF}
 asm
 {$IFDEF CPU64}
         MULSS   XMM0, XMM3
@@ -467,7 +491,8 @@ var
   Det: TFloat;
 begin
   Det := Determinant(M);
-  if Abs(Det) < 1E-5 then M := IdentityMatrix
+  if Abs(Det) < 1E-5 then
+    M := IdentityMatrix
   else
   begin
     Adjoint(M);
@@ -555,7 +580,8 @@ var
 begin
   GR32.IntersectRect(DstRect, DstClip, Dst.ClipRect);
 
-  if (DstRect.Right < DstRect.Left) or (DstRect.Bottom < DstRect.Top) then Exit;
+  if (DstRect.Right < DstRect.Left) or (DstRect.Bottom < DstRect.Top) then
+    Exit;
 
   if not Dst.MeasuringMode then
   begin
@@ -632,19 +658,22 @@ end;
 
 function TTransformation.ReverseTransform(const P: TFloatPoint): TFloatPoint;
 begin
-  if not TransformValid then PrepareTransform;
+  if not TransformValid then
+    PrepareTransform;
   ReverseTransformFloat(P.X, P.Y, Result.X, Result.Y);
 end;
 
 function TTransformation.ReverseTransform(const P: TFixedPoint): TFixedPoint;
 begin
-  if not TransformValid then PrepareTransform;
+  if not TransformValid then
+    PrepareTransform;
   ReverseTransformFixed(P.X, P.Y, Result.X, Result.Y);
 end;
 
 function TTransformation.ReverseTransform(const P: TPoint): TPoint;
 begin
-  if not TransformValid then PrepareTransform;
+  if not TransformValid then
+    PrepareTransform;
   ReverseTransformInt(P.X, P.Y, Result.X, Result.Y);
 end;
 
@@ -683,19 +712,22 @@ end;
 
 function TTransformation.Transform(const P: TFloatPoint): TFloatPoint;
 begin
-  if not TransformValid then PrepareTransform;
+  if not TransformValid then
+    PrepareTransform;
   TransformFloat(P.X, P.Y, Result.X, Result.Y);
 end;
 
 function TTransformation.Transform(const P: TFixedPoint): TFixedPoint;
 begin
-  if not TransformValid then PrepareTransform;
+  if not TransformValid then
+    PrepareTransform;
   TransformFixed(P.X, P.Y, Result.X, Result.Y);
 end;
 
 function TTransformation.Transform(const P: TPoint): TPoint;
 begin
-  if not TransformValid then PrepareTransform;
+  if not TransformValid then
+    PrepareTransform;
   TransformInt(P.X, P.Y, Result.X, Result.Y);
 end;
 
@@ -734,7 +766,8 @@ end;
 
 destructor TNestedTransformation.Destroy;
 begin
-  if Assigned(FItems) then Clear;
+  if Assigned(FItems) then
+    Clear;
   FItems.Free;
   inherited;
 end;
@@ -743,6 +776,9 @@ function TNestedTransformation.Add(
   ItemClass: TTransformationClass): TTransformation;
 begin
   Result := ItemClass.Create;
+  {$IFDEF NEXTGEN}
+  Result.__ObjAddRef;
+  {$ENDIF}
   FItems.Add(Result);
 end;
 
@@ -977,14 +1013,16 @@ var
   S, C: TFloat;
   M: TFloatMatrix;
 begin
-  if (Cx <> 0) or (Cy <> 0) then Translate(-Cx, -Cy);
+  if (Cx <> 0) or (Cy <> 0) then
+    Translate(-Cx, -Cy);
   Alpha := DegToRad(Alpha);
   GR32_Math.SinCos(Alpha, S, C);
   M := IdentityMatrix;
   M[0, 0] := C;   M[1, 0] := S;
   M[0, 1] := -S;  M[1, 1] := C;
   FMatrix := Mult(M, Matrix);
-  if (Cx <> 0) or (Cy <> 0) then Translate(Cx, Cy);
+  if (Cx <> 0) or (Cy <> 0) then
+    Translate(Cx, Cy);
   Changed;
 end;
 
@@ -1145,7 +1183,8 @@ begin
   Z := FixedMul(FInverseFixedMatrix[0, 2], DstX) +
     FixedMul(FInverseFixedMatrix[1, 2], DstY) + FInverseFixedMatrix[2, 2];
 
-  if Z = 0 then Exit;
+  if Z = 0 then
+    Exit;
 
   {$IFDEF UseInlining}
   SrcX := FixedMul(DstX, FInverseFixedMatrix[0, 0]) +
@@ -1175,7 +1214,8 @@ begin
   Z := FInverseMatrix[0, 2] * DstX + FInverseMatrix[1, 2] * DstY +
     FInverseMatrix[2, 2];
 
-  if Z = 0 then Exit;
+  if Z = 0 then
+    Exit;
 
   {$IFDEF UseInlining}
   SrcX := DstX * FInverseMatrix[0, 0] + DstY * FInverseMatrix[1, 0] +
@@ -1203,7 +1243,8 @@ begin
   Z := FixedMul(FFixedMatrix[0, 2], SrcX) +
     FixedMul(FFixedMatrix[1, 2], SrcY) + FFixedMatrix[2, 2];
 
-  if Z = 0 then Exit;
+  if Z = 0 then
+    Exit;
 
   {$IFDEF UseInlining}
   DstX := FixedMul(SrcX, FFixedMatrix[0, 0]) +
@@ -1370,7 +1411,8 @@ begin
     end;
     Fsr := 1 / FMinR;
     Faw := ArcSin(Constrain(FMinR * Fsr, -1, 1));
-    if Faw <> 0 then Faw := 1 / Faw;
+    if Faw <> 0 then
+      Faw := 1 / Faw;
     Faw := Faw * FMinR
   end;
   TransformValid := True;  
@@ -1412,17 +1454,29 @@ begin
   Rt := (1 / (PI * 2)) * Sx;
 
   Rt2 := Sx;
-  if Rt2 <> 0 then Rt2 := 1 / Sx else Rt2 := 0.00000001;
+  if Rt2 <> 0 then
+    Rt2 := 1 / Sx
+  else
+    Rt2 := 0.00000001;
   Rt2 := Rt2 * 2 * Pi;
 
   Rr := Sy;
-  if Rr <> 0 then Rr := 1 / Rr else Rr := 0.00000001;
+  if Rr <> 0 then
+    Rr := 1 / Rr
+  else
+    Rr := 0.00000001;
 
   Rcx := Cx;
-  if Rcx <> 0 then Rcx := 1 / Rcx else Rcx := 0.00000001;
+  if Rcx <> 0 then
+    Rcx := 1 / Rcx
+  else
+    Rcx := 0.00000001;
 
   Rcy := Cy;
-  if Rcy <> 0 then Rcy := 1 / Rcy else Rcy := 0.00000001;
+  if Rcy <> 0 then
+    Rcy := 1 / Rcy
+   else
+    Rcy := 0.00000001;
 
   TransformValid := True;
 end;
@@ -1457,7 +1511,8 @@ begin
   Dcy := (DstY - Cy) * Rcy;
 
   Theta := ArcTan2(Dcy, Dcx) + Pi - Phase;
-  if Theta < 0 then Theta := Theta + PI2;
+  if Theta < 0 then
+    Theta := Theta + PI2;
 
   SrcX := SrcRect.Left + Theta * Rt;
   SrcY := SrcRect.Bottom - GR32_Math.Hypot(Dcx, Dcy) * Sy;
@@ -1506,7 +1561,8 @@ begin
       DDist := Dist - FTopHypot[I - 1].Dist;
       if DDist <> 0 then
         RecDist := 1 / DDist
-      else if I > 1 then
+      else
+      if I > 1 then
         RecDist := FTopHypot[I - 1].RecDist
       else
         RecDist := 0;
@@ -1527,7 +1583,8 @@ begin
       DDist := Dist - FBottomHypot[I - 1].Dist;
       if DDist <> 0 then
         RecDist := 1 / DDist
-      else if I > 1 then
+      else
+      if I > 1 then
         RecDist := FBottomHypot[I - 1].RecDist
       else
         RecDist := 0;
@@ -1563,7 +1620,8 @@ begin
   fx := X * FTopLength;
   I := 1;
   H := High(FTopHypot);
-  while (FTopHypot[I].Dist < fx) and (I < H) do Inc(I);
+  while (FTopHypot[I].Dist < fx) and (I < H) do
+    Inc(I);
 
 
   with FTopHypot[I] do
@@ -1577,8 +1635,8 @@ begin
   fx := X * FBottomLength;
   I := 1;
   H := High(FBottomHypot);
-  while (FBottomHypot[I].Dist < fx) and (I < H) do Inc(I);
-
+  while (FBottomHypot[I].Dist < fx) and (I < H) do
+    Inc(I);
 
   with FBottomHypot[I] do
     r := (Dist - fx) * RecDist;
@@ -1613,6 +1671,188 @@ procedure TDisturbanceTransformation.SetDisturbance(const Value: TFloat);
 begin
   FDisturbance := Value;
   Changed;  
+end;
+
+constructor TRadialDistortionTransformation.Create;
+begin
+  FCoefficient1 := 0;
+  FCoefficient2 := 0;
+  FMapElements := 0;
+end;
+
+function TRadialDistortionTransformation.HasTransformedBounds: Boolean;
+begin
+  Result := False;
+end;
+
+procedure TRadialDistortionTransformation.PrepareReverseMap;
+var
+  i, j, jmax, unset, LowerI, UpperI, interpolated, mapToSameIndex, IndexOutOfRange: Integer;
+  r_src, r_tgt, LowerValue, UpperValue: TFloat;
+begin
+  if MapElements <= 1 then
+    MapElements := Trunc(r_0);
+  r_tgt_max := 2;
+  r_tgt_min := -0.5;
+  SetLength(Map, MapElements);
+  for i := 0 to High(Map) do
+    Map[i] := -1;
+
+  jmax := 1000;
+  mapToSameIndex := 0;
+  IndexOutOfRange := 0;
+  for j := 0 to jmax do
+  begin
+    r_src := j/jmax*2;
+    r_tgt := (1 + FCoefficient1 * Sqr(r_src) + FCoefficient2 * Power(r_src, 4));
+    Assert(InRange(r_tgt, r_tgt_min, r_tgt_max));
+    i := Trunc((r_tgt*r_src-r_tgt_min)/(r_tgt_max-r_tgt_min)*(High(Map)-1));
+    if not InRange(i, 0, High(Map)) then
+    begin
+      Inc(IndexOutOfRange);
+      //OutputDebugString(PChar(Format('PrepareReverseMap: i=%d out of range (0, MapElements=%d), r_tgt=%f', [ i, MapElements, r_tgt ])))
+    end
+    else
+    if Map[i]<>-1 then
+    begin
+      Inc(mapToSameIndex);
+      // OutputDebugString(PChar(Format('PrepareReverseMap: Map[i=%d] already has value %f (wanted to put %f there)', [ i, Map[i], r_tgt ])))
+    end
+    else
+      Map[i] := r_tgt;
+  end;
+
+  unset := 0;
+  for i := 0 to High(Map) do
+  begin
+    if Map[i] = -1 then
+      Inc(unset);
+  end;
+
+  // linear interpolation where Map[i] == -1 (but no extrapolation)
+  i := 0;
+  LowerI := -1;
+  LowerValue := -1;
+  interpolated := 0;
+  repeat
+    if Map[i] = -1 then
+    begin
+      if LowerI <> -1 then
+      begin
+        UpperI := i+1;
+        while (UpperI<=High(Map)) and (Map[UpperI] = -1) do
+          Inc(UpperI);
+        if UpperI<=High(Map) then
+        begin
+          UpperValue := Map[UpperI];
+          for j := LowerI+1 to UpperI-1 do
+          begin
+            Map[j] := LowerValue + (UpperValue-LowerValue) * (j-LowerI) / (UpperI - LowerI);
+            Inc(interpolated);
+          end;
+        end;
+      end;
+    end
+    else
+    begin
+      LowerI := i;
+      LowerValue := Map[i];
+    end;
+    Inc(i);
+  until i > High(Map);
+{$IFDEF DEBUG}
+  OutputDebugString(PChar(Format(
+    'TRadialDistortionTransformation.PrepareReverseMap: mapToSameIndex=%d. IndexOutOfRange=%d. %d out of %d map elements were uninitialized, %d of these were interpolated',
+    [ mapToSameIndex, IndexOutOfRange, unset, High(Map), interpolated ])));
+{$ENDIF}
+
+  for i := 0 to High(Map) do
+  begin
+    if Map[i] = -1 then
+      Map[i] := 1;
+  end;
+{$IFDEF DEBUG}
+{$IFDEF COMPILER2009_UP}
+  OutputDebugString(PChar(Format('TRadialDistortionTransformation.PrepareReverseMap: MinValue(Map)=%f MaxValue(Map)=%f', [ MinValue(Map), MaxValue(Map) ])));
+{$ENDIF}
+{$ENDIF}
+end;
+
+procedure TRadialDistortionTransformation.PrepareTransform;
+var
+  r: TRect;
+begin
+  if IsRectEmpty(SrcRect) then
+    raise Exception.Create(RCStrSrcRectIsEmpty);
+  TransformValid := not IsRectEmpty(SrcRect);
+  if Not TransformValid then
+    Exit;
+
+  // center / focal point relative to which all (un)distortions are calculated
+  FFocalPoint.x := (SrcRect.Right + SrcRect.Left) / 2;
+  FFocalPoint.y := (SrcRect.Bottom + SrcRect.Top) / 2;
+
+  r := MakeRect(SrcRect);
+  r_0 := Sqrt(2*Sqr(Min(r.Right - r.Left, r.Bottom - r.Top)))/2;
+
+  PrepareReverseMap;
+end;
+
+function TRadialDistortionTransformation.LookUpReverseMap(const r_tgt: TFloat): TFloat;
+var
+  index: Integer;
+begin
+  index := Trunc((r_tgt-r_tgt_min) / (r_tgt_max-r_tgt_min) * High(Map));
+  if not InRange(index, 0, High(Map)) then
+    raise Exception.Create(Format('TRadialDistortionTransformation.LookUpReverseMap: Index %d out of range (0..%d)', [ index, MapElements ]));
+  Result := Map[index];
+end;
+
+procedure TRadialDistortionTransformation.ReverseTransformFloat(DstX, DstY: TFloat;
+  out SrcX, SrcY: TFloat);
+var
+  r_tgt, r_src: Single;
+  d: TFloatPoint;
+begin
+  d.x := DstX;
+  d.y := DstY;
+  r_tgt := Distance(FFocalPoint, d)/r_0;
+
+  r_src := LookUpReverseMap(r_tgt);
+
+  SrcX := FFocalPoint.X + (d.X-FFocalPoint.X) / r_src;
+  SrcY := FFocalPoint.Y + (d.Y-FFocalPoint.Y) / r_src;
+end;
+
+procedure TRadialDistortionTransformation.SetCoefficient1(const Value: TFloat);
+begin
+  FCoefficient1 := Value;
+  Changed;
+end;
+
+procedure TRadialDistortionTransformation.SetCoefficient2(const Value: TFloat);
+begin
+  FCoefficient2 := Value;
+  Changed;
+end;
+
+procedure TRadialDistortionTransformation.SetMapElements(const Value: Integer);
+begin
+  FMapElements := Value;
+  Changed;
+end;
+
+procedure TRadialDistortionTransformation.TransformFloat(SrcX, SrcY: TFloat; out DstX, DstY: TFloat);
+var
+  r_tgt, r_src: Single;
+  d: TFloatPoint;
+begin
+  d.x := SrcX;
+  d.y := SrcY;
+  r_src := Distance(FFocalPoint, d)/r_0;
+  r_tgt := 1 + FCoefficient1 * Sqr(r_src) + FCoefficient2 * Power(r_src, 4);
+  DstX := FFocalPoint.X + (d.X-FFocalPoint.X) * r_tgt;
+  DstY := FFocalPoint.Y + (d.Y-FFocalPoint.Y) * r_tgt;
 end;
 
 { TRemapTransformation }
@@ -1650,8 +1890,10 @@ end;
 
 procedure TRemapTransformation.PrepareTransform;
 begin
-  if IsRectEmpty(SrcRect) then raise Exception.Create(RCStrSrcRectIsEmpty);
-  if IsRectEmpty(FMappingRect) then raise Exception.Create(RCStrMappingRectIsEmpty);
+  if IsRectEmpty(SrcRect) then
+    raise Exception.Create(RCStrSrcRectIsEmpty);
+  if IsRectEmpty(FMappingRect) then
+    raise Exception.Create(RCStrMappingRectIsEmpty);
   with SrcRect do
   begin
     FSrcTranslationFloat.X := Left;
@@ -1770,7 +2012,8 @@ var
   MapPtr: PFixedPointArray;
 begin
   GR32.IntersectRect(DstRect, VectorMap.BoundsRect, DstRect);
-  if GR32.IsRectEmpty(DstRect) then Exit;
+  if GR32.IsRectEmpty(DstRect) then
+    Exit;
 
   if not TTransformationAccess(Transformation).TransformValid then
     TTransformationAccess(Transformation).PrepareTransform;
