@@ -1,4 +1,4 @@
-unit GR32_VectorUtils;
+﻿unit GR32_VectorUtils;
 
 (* ***** BEGIN LICENSE BLOCK *****
  * Version: MPL 1.1 or LGPL 2.1 with linking exception
@@ -40,7 +40,9 @@ interface
 
 uses
   Math, {$IFDEF FPC}Types, {$ENDIF} {$IFDEF COMPILERXE2_UP}Types, {$ENDIF}
-  GR32, GR32_Transforms, GR32_Polygons;
+  GR32,
+  GR32_Transforms,
+  GR32_Polygons;
 
 const
   DEFAULT_MITER_LIMIT = 4.0;
@@ -121,14 +123,14 @@ function Line(const P1, P2: TFloatPoint): TArrayOfFloatPoint; overload;
 function Line(const X1, Y1, X2, Y2: TFloat): TArrayOfFloatPoint; overload;
 function VertLine(const X, Y1, Y2: TFloat): TArrayOfFloatPoint;
 function HorzLine(const X1, Y, X2: TFloat): TArrayOfFloatPoint;
-function Circle(const P: TFloatPoint; const Radius: TFloat; Steps: Integer): TArrayOfFloatPoint; overload;
-function Circle(const P: TFloatPoint; const Radius: TFloat): TArrayOfFloatPoint; overload; {$IFDEF USEINLINING} inline; {$ENDIF}
-function Circle(const X, Y, Radius: TFloat; Steps: Integer): TArrayOfFloatPoint; overload; {$IFDEF USEINLINING} inline; {$ENDIF}
-function Circle(const X, Y, Radius: TFloat): TArrayOfFloatPoint; overload; {$IFDEF USEINLINING} inline; {$ENDIF}
-function Circle(const R: TRect): TArrayOfFloatPoint; overload; {$IFDEF USEINLINING} inline; {$ENDIF}
-function Circle(const R: TRect; Steps: Integer): TArrayOfFloatPoint; overload; {$IFDEF USEINLINING} inline; {$ENDIF}
-function Circle(const R: TFloatRect): TArrayOfFloatPoint; overload; {$IFDEF USEINLINING} inline; {$ENDIF}
-function Circle(const R: TFloatRect; Steps: Integer): TArrayOfFloatPoint; overload; {$IFDEF USEINLINING} inline; {$ENDIF}
+function Circle(const P: TFloatPoint; const Radius: TFloat; Steps: Integer): TArrayOfFloatPoint; overload; {$IFDEF INLINING_ENHANCED_RECORDS} inline; {$ENDIF}
+function Circle(const P: TFloatPoint; const Radius: TFloat): TArrayOfFloatPoint; overload; {$IFDEF INLINING_ENHANCED_RECORDS} inline; {$ENDIF}
+function Circle(const X, Y, Radius: TFloat; Steps: Integer): TArrayOfFloatPoint; overload; {$IFDEF INLINING_ENHANCED_RECORDS} inline; {$ENDIF}
+function Circle(const X, Y, Radius: TFloat): TArrayOfFloatPoint; overload; {$IFDEF INLINING_ENHANCED_RECORDS} inline; {$ENDIF}
+function Circle(const R: TRect): TArrayOfFloatPoint; overload; {$IFDEF INLINING_ENHANCED_RECORDS} inline; {$ENDIF}
+function Circle(const R: TRect; Steps: Integer): TArrayOfFloatPoint; overload; {$IFDEF INLINING_ENHANCED_RECORDS} inline; {$ENDIF}
+function Circle(const R: TFloatRect): TArrayOfFloatPoint; overload; {$IFDEF INLINING_ENHANCED_RECORDS} inline; {$ENDIF}
+function Circle(const R: TFloatRect; Steps: Integer): TArrayOfFloatPoint; overload; {$IFDEF INLINING_ENHANCED_RECORDS} inline; {$ENDIF}
 function Pie(const P: TFloatPoint; const Radius: TFloat; const Angle, Offset: TFloat; Steps: Integer): TArrayOfFloatPoint; overload;
 function Pie(const P: TFloatPoint; const Radius: TFloat; const Angle: TFloat; const Offset: TFloat = 0): TArrayOfFloatPoint; overload; {$IFDEF USEINLINING} inline; {$ENDIF}
 function Pie(const P: TFloatPoint; const Radius: TFloat; const Angle: TFloat; Steps: Integer): TArrayOfFloatPoint; overload; {$IFDEF USEINLINING} inline; {$ENDIF}
@@ -136,13 +138,13 @@ function Pie(const X, Y, Radius: TFloat; const Angle, Offset: TFloat; Steps: Int
 function Pie(const X, Y, Radius: TFloat; const Angle: TFloat; const Offset: TFloat = 0): TArrayOfFloatPoint; overload; {$IFDEF USEINLINING} inline; {$ENDIF}
 function Pie(const X, Y, Radius: TFloat; const Angle: TFloat; Steps: Integer): TArrayOfFloatPoint; overload; {$IFDEF USEINLINING} inline; {$ENDIF}
 function Ellipse(const P, R: TFloatPoint; Steps: Integer): TArrayOfFloatPoint; overload;
-function Ellipse(const P, R: TFloatPoint): TArrayOfFloatPoint; overload; {$IFDEF USEINLINING} inline; {$ENDIF}
-function Ellipse(const X, Y, Rx, Ry: TFloat; Steps: Integer): TArrayOfFloatPoint; overload; {$IFDEF USEINLINING} inline; {$ENDIF}
-function Ellipse(const X, Y, Rx, Ry: TFloat): TArrayOfFloatPoint; overload; {$IFDEF USEINLINING} inline; {$ENDIF}
-function Ellipse(const R: TRect): TArrayOfFloatPoint; overload; {$IFDEF USEINLINING} inline; {$ENDIF}
-function Ellipse(const R: TFloatRect): TArrayOfFloatPoint; overload; {$IFDEF USEINLINING} inline; {$ENDIF}
-function Ellipse(const R: TRect; Steps: Integer): TArrayOfFloatPoint; overload; {$IFDEF USEINLINING} inline; {$ENDIF}
-function Ellipse(const R: TFloatRect; Steps: Integer): TArrayOfFloatPoint; overload; {$IFDEF USEINLINING} inline; {$ENDIF}
+function Ellipse(const P, R: TFloatPoint): TArrayOfFloatPoint; overload; {$IFDEF INLINING_ENHANCED_RECORDS} inline; {$ENDIF}
+function Ellipse(const X, Y, Rx, Ry: TFloat; Steps: Integer): TArrayOfFloatPoint; overload; {$IFDEF INLINING_ENHANCED_RECORDS} inline; {$ENDIF}
+function Ellipse(const X, Y, Rx, Ry: TFloat): TArrayOfFloatPoint; overload; {$IFDEF INLINING_ENHANCED_RECORDS} inline; {$ENDIF}
+function Ellipse(const R: TRect): TArrayOfFloatPoint; overload; {$IFDEF INLINING_ENHANCED_RECORDS} inline; {$ENDIF}
+function Ellipse(const R: TFloatRect): TArrayOfFloatPoint; overload; {$IFDEF INLINING_ENHANCED_RECORDS} inline; {$ENDIF}
+function Ellipse(const R: TRect; Steps: Integer): TArrayOfFloatPoint; overload; {$IFDEF INLINING_ENHANCED_RECORDS} inline; {$ENDIF}
+function Ellipse(const R: TFloatRect; Steps: Integer): TArrayOfFloatPoint; overload; {$IFDEF INLINING_ENHANCED_RECORDS} inline; {$ENDIF}
 
 function Star(const P: TFloatPoint; const InnerRadius, OuterRadius: TFloat;
   Vertices: Integer = 5; Rotation: TFloat = 0): TArrayOfFloatPoint; overload; {$IFDEF USEINLINING} inline; {$ENDIF}
@@ -203,7 +205,10 @@ function FloatPointToFixedPoint(const Points: TArrayOfArrayOfFloatPoint): TArray
 implementation
 
 uses
-  SysUtils, GR32_Math, GR32_Geometry, GR32_LowLevel;
+  SysUtils,
+  GR32_Math,
+  GR32_Geometry,
+  GR32_LowLevel;
 
 type
   TTransformationAccess = class(TTransformation);
@@ -1511,7 +1516,7 @@ var
     CX := X1 + X2;
     CY := Y1 + Y2;
 
-    R := X1 * CX + Y1 * CY; //(1 - cos(�))  (range: 0 <= R <= 2)
+    R := X1 * CX + Y1 * CY; //(1 - cos(Θ))  (range: 0 <= R <= 2)
     if R < RMin then
     begin
       AddPoint(Delta * X1, Delta * Y1);
@@ -1637,14 +1642,18 @@ var
   begin
     PX := X;
     PY := Y;
-    case JoinStyle of
-      jsMiter: AddMitered(A.X, A.Y, B.X, B.Y);
-      jsBevel: AddBevelled(A.X, A.Y, B.X, B.Y);
-      jsRoundEx: AddRoundedJoin(A.X, A.Y, B.X, B.Y);
-      else if (X1 * Y2 - X2 * Y1) * Delta < 0 then //miter when concave
-        AddMitered(A.X, A.Y, B.X, B.Y) else
-        AddRoundedJoin(A.X, A.Y, B.X, B.Y);
-    end;
+
+    if (JoinStyle <> jsRoundEx) and ((X1 * Y2 - X2 * Y1) * Delta < 0)  then
+    begin
+      AddPoint(Delta * X1, Delta * Y1);
+      AddPoint(Delta * X2, Delta * Y2);
+    end else
+      case JoinStyle of
+        jsMiter: AddMitered(A.X, A.Y, B.X, B.Y);
+        jsBevel: AddBevelled(A.X, A.Y, B.X, B.Y);
+        jsRound: AddRoundedJoin(A.X, A.Y, B.X, B.Y);
+        jsRoundEx: AddRoundedJoin(A.X, A.Y, B.X, B.Y);
+      end;
   end;
 
 begin
@@ -1917,15 +1926,17 @@ var
   P1, P2: TArrayOfFloatPoint;
   Dst: TArrayOfArrayOfFloatPoint;
   Normals: TArrayOfFloatPoint;
+  HalfStrokeWidth: TFloat;
 begin
   if Closed then
   begin
     SetLength(Dst, Length(Points) * 2);
+    HalfStrokeWidth := StrokeWidth * 0.5;
     for I := 0 to High(Points) do
     begin
       Normals := BuildNormals(Points[I]);
-      P1 := Grow(Points[I], Normals, StrokeWidth * 0.5, JoinStyle, True, MiterLimit);
-      P2 := Grow(Points[I], Normals, -StrokeWidth * 0.5, JoinStyle, True, MiterLimit);
+      P1 := Grow(Points[I], Normals, HalfStrokeWidth, JoinStyle, True, MiterLimit);
+      P2 := Grow(Points[I], Normals, -HalfStrokeWidth, JoinStyle, True, MiterLimit);
       Dst[I * 2] := P1;
       Dst[I * 2 + 1] := ReversePolygon(P2);
     end;
@@ -1980,15 +1991,17 @@ var
   P1, P2: TArrayOfFixedPoint;
   Dst: TArrayOfArrayOfFixedPoint;
   Normals: TArrayOfFixedPoint;
+  HalfStrokeWidth: TFixed;
 begin
   if Closed then
   begin
     SetLength(Dst, Length(Points) * 2);
+    HalfStrokeWidth := StrokeWidth shr 1;
     for I := 0 to High(Points) do
     begin
       Normals := BuildNormals(Points[I]);
-      P1 := Grow(Points[I], Normals, StrokeWidth shr 1, JoinStyle, True, MiterLimit);
-      P2 := Grow(Points[I], Normals, -StrokeWidth shr 1, JoinStyle, True, MiterLimit);
+      P1 := Grow(Points[I], Normals, HalfStrokeWidth, JoinStyle, True, MiterLimit);
+      P2 := Grow(Points[I], Normals, -HalfStrokeWidth, JoinStyle, True, MiterLimit);
       Dst[I * 2] := P1;
       Dst[I * 2 + 1] := ReversePolygon(P2);
     end;
@@ -2079,7 +2092,7 @@ begin
   DashOffset := Wrap(DashOffset, V);
 
   DashOffset := DashOffset - V;
-  while DashOffset < 0 do
+  while (DashOffset < 0) and (DashIndex < High(DashArray)) do
   begin
     Inc(DashIndex);
     DashOffset := DashOffset + DashArray[DashIndex];
@@ -2099,7 +2112,12 @@ begin
     AddDash(0);
     len1 := Length(Result[0]);
     len2 := Length(Result[J]);
-    if (len1 > 0) and (len2 > 0) then
+    // Only merge if the first and last points are contributing on a dash
+    {$IFNDEF FPC}
+      if (len1 > 0) and (len2 > 0) and (Result[0][0] = Result[J][len2 - 1]) then
+    {$ELSE}
+      if (len1 > 0) and (len2 > 0) and (Result[0][0].X = Result[J][len2 - 1].X) and (Result[0][0].Y = Result[J][len2 - 1].Y) then
+    {$ENDIF}  
     begin
       SetLength(Result[0], len1 + len2 -1);
       Move(Result[0][0], Result[0][len2 - 1], SizeOf(TFloatPoint) * len1);

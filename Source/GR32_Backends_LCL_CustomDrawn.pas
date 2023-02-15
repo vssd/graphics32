@@ -54,6 +54,7 @@ type
     ITextSupport,
     IFontSupport,
     IDeviceContextSupport,
+    IInteroperabilitySupport,
     ICanvasSupport
   )
   private
@@ -102,11 +103,6 @@ type
     procedure Textout(var DstRect: TRect; const Flags: Cardinal; const Text: string); overload;
     function  TextExtent(const Text: string): TSize;
 
-    procedure TextoutW(X, Y: Integer; const Text: Widestring); overload;
-    procedure TextoutW(X, Y: Integer; const ClipRect: TRect; const Text: Widestring); overload;
-    procedure TextoutW(var DstRect: TRect; const Flags: Cardinal; const Text: Widestring); overload;
-    function  TextExtentW(const Text: Widestring): TSize;
-
     { IFontSupport }
     function GetOnFontChange: TNotifyEvent;
     procedure SetOnFontChange(Handler: TNotifyEvent);
@@ -116,6 +112,9 @@ type
     procedure UpdateFont;
     property Font: TFont read GetFont write SetFont;
     property OnFontChange: TNotifyEvent read FOnFontChange write FOnFontChange;
+
+    { IInteroperabilitySupport }
+    function CopyFrom(Graphic: TGraphic): Boolean; overload;
 
     { ICanvasSupport }
     function GetCanvasChange: TNotifyEvent;
@@ -331,27 +330,6 @@ begin
   Result := FCanvas.TextExtent(Text);
 end;
 
-procedure TLCLBackend.TextoutW(X, Y: Integer; const Text: Widestring);
-begin
-  Canvas.TextOut(X, Y, Text);
-end;
-
-procedure TLCLBackend.TextoutW(X, Y: Integer; const ClipRect: TRect; const Text: Widestring);
-begin
-  Canvas.ClipRect := ClipRect;;
-  Canvas.TextOut(X, Y, Text);
-end;
-
-procedure TLCLBackend.TextoutW(var DstRect: TRect; const Flags: Cardinal; const Text: Widestring);
-begin
-  TextOut(DstRect, Flags, Text);
-end;
-
-function TLCLBackend.TextExtentW(const Text: Widestring): TSize;
-begin
-  Result := TextExtent(Text);
-end;
-
 { IFontSupport }
 
 function TLCLBackend.GetOnFontChange: TNotifyEvent;
@@ -379,6 +357,16 @@ begin
   FFont.OnChange := FOnFontChange;
 
   if Assigned(FCanvas) then FCanvas.Font := FFont;
+end;
+
+{ IInteroperabilitySupport }
+
+type
+  TGraphicAccess = class(TGraphic);
+
+function TLCLBackend.CopyFrom(Graphic: TGraphic): Boolean;
+begin
+  TGraphicAccess(Graphic).Draw(Canvas, MakeRect(0, 0, Canvas.Width, Canvas.Height));
 end;
 
 { ICanvasSupport }

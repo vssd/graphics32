@@ -109,11 +109,6 @@ type
     procedure Textout(var DstRect: TRect; const Flags: Cardinal; const Text: string); overload;
     function  TextExtent(const Text: string): TSize;
 
-    procedure TextoutW(X, Y: Integer; const Text: Widestring); overload;
-    procedure TextoutW(X, Y: Integer; const ClipRect: TRect; const Text: Widestring); overload;
-    procedure TextoutW(var DstRect: TRect; const Flags: Cardinal; const Text: Widestring); overload;
-    function  TextExtentW(const Text: Widestring): TSize;
-
     { IFontSupport }
     function GetOnFontChange: TNotifyEvent;
     procedure SetOnFontChange(Handler: TNotifyEvent);
@@ -123,6 +118,9 @@ type
 
     property Font: TFont read GetFont write SetFont;
     property OnFontChange: TNotifyEvent read FOnFontChange write FOnFontChange;
+
+    { IInteroperabilitySupport }
+    function CopyFrom(Graphic: TGraphic): Boolean; overload;
 
     { ICanvasSupport }
     function GetCanvasChange: TNotifyEvent;
@@ -507,28 +505,6 @@ begin
   Result := FCanvas.TextExtent(Text);
 end;
 
-{ Carbon uses UTF-8, so all W functions are converted to UTF-8 ones }
-
-procedure TLCLBackend.TextoutW(X, Y: Integer; const Text: Widestring);
-begin
-  TextOut(X, Y, Utf8Encode(Text));
-end;
-
-procedure TLCLBackend.TextoutW(X, Y: Integer; const ClipRect: TRect; const Text: Widestring);
-begin
-  TextOut(X, Y, ClipRect, Utf8Encode(Text));
-end;
-
-procedure TLCLBackend.TextoutW(var DstRect: TRect; const Flags: Cardinal; const Text: Widestring);
-begin
-  TextOut(DstRect, Flags, Utf8Encode(Text));
-end;
-
-function TLCLBackend.TextExtentW(const Text: Widestring): TSize;
-begin
-  Result := TextExtent(Utf8Encode(Text));
-end;
-
 { IFontSupport }
 
 function TLCLBackend.GetOnFontChange: TNotifyEvent;
@@ -582,6 +558,18 @@ begin
 
   if Assigned(FCanvas) then FCanvas.Font := FFont;
 end;
+
+
+{ IInteroperabilitySupport }
+
+type
+  TGraphicAccess = class(TGraphic);
+
+function TLCLBackend.CopyFrom(Graphic: TGraphic): Boolean;
+begin
+  TGraphicAccess(Graphic).Draw(Canvas, MakeRect(0, 0, FCanvas.Width, FCanvas.Height));
+end;
+
 
 { ICanvasSupport }
 

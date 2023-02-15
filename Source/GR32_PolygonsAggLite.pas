@@ -45,6 +45,11 @@ interface
 
 {$I GR32.inc}
 
+{$IFDEF FPC}
+{$DEFINE PUREPASCAL}
+{$ENDIF}
+
+
 uses
   Types, GR32, GR32_Polygons, GR32_Transforms;
 
@@ -763,6 +768,7 @@ begin
   until Count = 0;
 end;
 
+{$IFNDEF PUREPASCAL}
 procedure FillSpan_ASM(Ptr: PColor32Array; Covers: PColor32; Count: Cardinal;
   const C: TColor32);
 asm
@@ -824,8 +830,8 @@ asm
         POP     EBX
 {$ENDIF}
 {$IFDEF CPUX64}
-        LEA     R10, RDX + 4 * R8              // R10 = Covers
-        LEA     R11, RCX + 4 * R8              // R11 = P
+        LEA     R10, [RDX + 4 * R8]            // R10 = Covers
+        LEA     R11, [RCX + 4 * R8]            // R11 = P
         NEG     R8D
 
 @LoopStart:
@@ -1028,6 +1034,7 @@ asm
 @4:
 {$ENDIF}
 end;
+{$ENDIF}
 {$ENDIF}
 
 function CalculateAlpha(FillMode: TPolyFillMode; Area: Integer): Cardinal;
@@ -1884,26 +1891,37 @@ end;
 const
   FID_FILLSPAN = 0;
 
+const
+  FillSpanBindingFlagPascal = $0001;
+
+const
+  FillSpanRegistryPriorityASM = -256;
+  FillSpanRegistryPriorityMMX = -512;
+  FillSpanRegistryPrioritySSE2 = -768;
+
+var
+  FillSpanRegistry: TFunctionRegistry;
+
 procedure RegisterBindings;
 begin
-  BlendRegistry := NewRegistry('GR32_PolygonsAggLite bindings');
-  BlendRegistry.RegisterBinding(FID_FILLSPAN, @@FILLSPAN);
+  FillSpanRegistry := NewRegistry('GR32_PolygonsAggLite bindings');
+  FillSpanRegistry.RegisterBinding(FID_FILLSPAN, @@FILLSPAN);
 
   // pure pascal
-  BlendRegistry.Add(FID_FILLSPAN, @FILLSPAN_Pas);
+  FillSpanRegistry.Add(FID_FILLSPAN, @FILLSPAN_Pas, [], FillSpanBindingFlagPascal);
 
 {$IFNDEF PUREPASCAL}
-  BlendRegistry.Add(FID_FILLSPAN, @FILLSPAN_ASM, []);
+  FillSpanRegistry.Add(FID_FILLSPAN, @FILLSPAN_ASM, [], 0, FillSpanRegistryPriorityASM);
 {$IFNDEF OMIT_MMX}
-  BlendRegistry.Add(FID_FILLSPAN, @FILLSPAN_MMX, [ciMMX]);
+  FillSpanRegistry.Add(FID_FILLSPAN, @FILLSPAN_MMX, [ciMMX], 0, FillSpanRegistryPriorityMMX);
 {$ENDIF}
 
 {$IFNDEF OMIT_SSE2}
-  BlendRegistry.Add(FID_FILLSPAN, @FILLSPAN_SSE2, [ciSSE2]);
+  FillSpanRegistry.Add(FID_FILLSPAN, @FILLSPAN_SSE2, [ciSSE2], 0, FillSpanRegistryPrioritySSE2);
 {$ENDIF}
 {$ENDIF}
 
-  BlendRegistry.RebindAll;
+  FillSpanRegistry.RebindAll;
 end;
 
 initialization
