@@ -4,6 +4,7 @@ bin
 *.dof
 *.drc
 *.dsk
+*.dsv
 *.exe
 *.hpp
 *.identcache
